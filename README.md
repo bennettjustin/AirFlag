@@ -13,7 +13,9 @@ You can also remove the battery of the AirTag by ....
 
 # Functionality (implemented and planned)
 
-
+<figure>
+    <img src="assets/StateChart.png"/>
+</figure>
 
 # Theory of Oporation
 <i>See Adam Catley's comprenesive [tear down and reverse engineer](https://adamcatley.com/AirTag.html) for more info on AirTags.</i>
