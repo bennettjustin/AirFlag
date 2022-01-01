@@ -17,9 +17,12 @@
 #include "esp_bt_main.h"
 
 #include "alert_drvr.h"
+#include "sleep_drvr.h"
 
 #define GAP_SCAN_TAG "GAP SCAN"
 #define STARTUP_TAG "STARTUP"
+
+bool b_alertToAirTag = false;
 
 /* Statio Callback functions */
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
@@ -35,11 +38,9 @@ static esp_ble_scan_params_t ble_scan_params = {
 
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
-    uint8_t *adv_name = NULL;
-    uint8_t adv_name_len = 0;
     switch(event){
         case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
-            uint32_t duration = 30; // in seconds
+            uint32_t duration = 10; // in seconds
             esp_ble_gap_start_scanning(duration);
             break;
         }
@@ -52,9 +53,30 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             ESP_LOGI(GAP_SCAN_TAG, "Scan started successfully");
             break;
 
-        case ESP_GAP_BLE_SCAN_RESULT_EVT:
+        case ESP_GAP_BLE_SCAN_RESULT_EVT: {
             // The scan has aquired results
-            ESP_LOGI(GAP_SCAN_TAG, "Results");
+            esp_ble_gap_cb_param_t *scan_result = (esp_ble_gap_cb_param_t *)param;
+            switch (scan_result->scan_rst.search_evt) {
+                case ESP_GAP_SEARCH_INQ_RES_EVT:
+                    // Compare the current packet to what we expect to get
+                    if ((scan_result->scan_rst.ble_adv[0] == 0x1E) && \
+                        (scan_result->scan_rst.ble_adv[1] == 0xFF) && \
+                        (scan_result->scan_rst.ble_adv[2] == 0x00) && \
+                        (scan_result->scan_rst.ble_adv[3] == 0x4C) && \
+                        (scan_result->scan_rst.ble_adv[4] == 0x12) && \
+                        (scan_result->scan_rst.ble_adv[5] == 0x19) && \
+                        (scan_result->scan_rst.ble_adv[6] == 0x10)) {
+                            ESP_LOGI(GAP_SCAN_TAG, "AirTag Detected!");
+                            b_alertToAirTag = true;
+                        }
+                    break;
+                
+                case ESP_GAP_SEARCH_INQ_CMPL_EVT:
+                    break;
+                default:
+                    break;
+            }
+            }
             break;
 
         case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
@@ -81,7 +103,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     }
 }
 
-void app_main()
+void ESP_Init()
 {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -128,5 +150,24 @@ void app_main()
     ret = esp_ble_gap_set_scan_params(&ble_scan_params);
     if (ret){
         ESP_LOGE(STARTUP_TAG, "set scan params error, error code = %x", ret);
+    }
+}
+
+
+void app_main()
+{
+    ESP_Init();
+
+    initAlert();
+
+    while(1) {
+        // Look for airtags -- this starts automatically when the esp exits sleep (see exitSleep)
+        if (b_alertToAirTag) {
+            alertToAirTag();
+        } else {
+            enterSleep();
+            exitSleep(esp_gap_cb, &ble_scan_params);
+        }
+
     }
 }

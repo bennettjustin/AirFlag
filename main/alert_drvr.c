@@ -2,11 +2,13 @@
 #include <stdint.h>
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "driver/gpio.h"
 #include "driver/timer.h"
 #include "hal/timer_types.h"
 #include "esp_err.h"
+#include "esp_log.h"
 
 static void IRAM_ATTR isr_buzzerCallback(void *args)
 {
@@ -27,10 +29,11 @@ static void IRAM_ATTR isr_buzzerCallback(void *args)
 
         // Free the counter mem
         free(countPtr);
+        ESP_LOGI("ALERT", "Buzzer finished");
     }
     
 }
-
+ 
 void initAlert()
 {
     // Configure Buzzer pin if enabled
@@ -80,12 +83,10 @@ void toggleGPIO(int8_t pin)
 }
 
 // duration in ms
-void buzzAlert(uint8_t dur)
+void buzzAlert(uint32_t dur)
 {
     if (BUZZER_PIN < 0)
         return;
-    
-    uint8_t outState = 0;
 
     // Buzzer needs a 2048Hz Square wave
     // Set a timer to trigger every 250us
@@ -113,3 +114,13 @@ void buzzAlert(uint8_t dur)
 
 }
 
+void alertToAirTag()
+{
+    // The beeps (~30 second total time)
+    for (int i = 0; i < 15; i++) {
+        
+        const uint32_t one_sec = 1000;
+        buzzAlert(one_sec);
+        vTaskDelay(one_sec / portTICK_PERIOD_MS); // Default tick length is 15ms
+    }
+}
