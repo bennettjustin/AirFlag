@@ -1,6 +1,6 @@
 
 # AirFlag
-Since Apple has released their AirTag product, I have noticed several instances of these cheap tracking devices used in nefarious purposes ^[[1](https://www.nytimes.com/2021/12/30/technology/apple-airtags-tracking-stalking.html)] ^[[2](https://www.cnet.com/tech/services-and-software/apple-airtags-can-be-used-to-track-you-how-to-protect-yourself/)].
+Since Apple has released their AirTag product, I have noticed several instances of these cheap tracking devices used in nefarious purposes <sup>[1](https://www.nytimes.com/2021/12/30/technology/apple-airtags-tracking-stalking.html) [2](https://www.cnet.com/tech/services-and-software/apple-airtags-can-be-used-to-track-you-how-to-protect-yourself/)</sup>.
 
 In order to avoid false positives, currently iOS devices will check for nearby unknown AirTags when reaching a known location, such as the owner's hosue [[Adam Catley](https://adamcatley.com/AirTag.html#privacy-concerns)]. To me, this seems too little too late. 
 
@@ -87,3 +87,4 @@ Once the basic functionality is implemented software, I plan to move on to creat
 1. OBD II port
 2. 12V Aux power
 3. USB powered
+4. Maybe a keychain type device
