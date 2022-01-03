@@ -26,8 +26,9 @@
 #define GAP_SCAN_TAG "GAP SCAN"
 #define STARTUP_TAG  "STARTUP"
 
-bool b_alertToAirTag = false;
-bool gapScanning     = false;
+uint8_t airTagCount        = 0;
+uint8_t airTagList[6 * 10] = {0};     // esp_bd_addr_t is 6 element array of uint8_t
+bool    gapScanning        = false;
 
 /* Statio Callback functions */
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
@@ -37,13 +38,13 @@ static esp_ble_scan_params_t ble_scan_params = {.scan_type          = BLE_SCAN_T
                                                 .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
                                                 .scan_interval      = 0x50,
                                                 .scan_window        = 0x30,
-                                                .scan_duplicate     = BLE_SCAN_DUPLICATE_DISABLE};
+                                                .scan_duplicate     = BLE_SCAN_DUPLICATE_ENABLE};
 
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     switch (event) {
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
-        uint32_t duration = 30;   // in seconds
+        uint32_t duration = 30;     // in seconds
         esp_ble_gap_start_scanning(duration);
         break;
     }
@@ -71,10 +72,11 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 (scan_result->scan_rst.ble_adv[4] == 0x12) &&
                 (scan_result->scan_rst.ble_adv[5] == 0x19) &&
                 (scan_result->scan_rst.ble_adv[6] == 0x10)) {
-                ESP_LOGI(GAP_SCAN_TAG, "AirTag Detected!");
-                b_alertToAirTag = true;
 
-                //TODO: Count the number of unique nearby airtags
+                // I have enabled the duplicate filter which makes scanning multiple much easier
+                ESP_LOGI(GAP_SCAN_TAG, "AirTag Detected!");
+                xthal_memcpy(airTagList + (airTagCount * 6), scan_result->scan_rst.bda, 6);
+                airTagCount++;
             }
 
 #if PRINT_OUT_OTHER_DEVICES
@@ -87,6 +89,9 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             break;
 
         case ESP_GAP_SEARCH_INQ_CMPL_EVT:
+            // I don't know if there is a good way to stop the scanning
+            // (if it is even needed) at this point.
+            gapScanning = false;
             break;
         default:
             break;
@@ -172,28 +177,36 @@ void ESP_Init()
 void app_main()
 {
     ESP_Init();
-
     initAlert();
+
+    // Wait for GAP scanning to start
     ESP_LOGI("Main", "Starting delay");
-    // Wait for GAP scanning to stop
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    while (!gapScanning) {
+        vTaskDelay(1);
+    }
+
+    // Check to see if an AirTag was detected while we are scanning
     ESP_LOGI("MAIN", "Entering Loop");
     do {
-        if (b_alertToAirTag) {
-            if (gapScanning)
-                esp_ble_gap_stop_scanning();
-
+        if (airTagCount > 1) {
+            ESP_LOGI("MAIN", "Waiting for scanning to stop");
             while (gapScanning) {
-                ESP_LOGI("MAIN", "Waiting for scanning to stop");
+
                 vTaskDelay(1);
             }
-            alertToAirTag();
-            ESP_LOGI("MAIN", "Found AirTag?:%d", b_alertToAirTag);
+            //alertToAirTag();
+            ESP_LOGI("MAIN", "Found %d AirTag(s)!", airTagCount);
+            if (airTagCount > 0) {
+                for (int i = 0; i < airTagCount; i++) {
+                    esp_log_buffer_hex("MAIN", airTagList + (i * 6), 6);
+                }
+            }
         }
         vTaskDelay(1);
 
     } while (gapScanning);
 
+    // Once scanning is done, go to sleep
     ESP_LOGI("MAIN", "Entering Sleep...");
     enterSleep();
 }

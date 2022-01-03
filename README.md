@@ -1,6 +1,6 @@
 
 # AirFlag
-Since Apple has released their AirTag product, I have noticed several instances of these cheap tracking devices used in nefarious purposes <sup>[1](https://www.nytimes.com/2021/12/30/technology/apple-airtags-tracking-stalking.html) [2](https://www.cnet.com/tech/services-and-software/apple-airtags-can-be-used-to-track-you-how-to-protect-yourself/)</sup>.
+Since Apple has released their AirTag product, I have noticed several instances of these cheap tracking devices used in nefarious purposes <sup>[[1](https://www.nytimes.com/2021/12/30/technology/apple-airtags-tracking-stalking.html)] [[2](https://www.cnet.com/tech/services-and-software/apple-airtags-can-be-used-to-track-you-how-to-protect-yourself/)]</sup>.
 
 In order to avoid false positives, currently iOS devices will check for nearby unknown AirTags when reaching a known location, such as the owner's hosue [[Adam Catley](https://adamcatley.com/AirTag.html#privacy-concerns)]. To me, this seems too little too late. 
 
@@ -9,23 +9,37 @@ The goal of the project is to detect nearby airtags in disconnected or lost mode
 <b>If you find an unkown AirTag, please follow the instructions listed here:
 https://support.apple.com/en-us/HT212227</b>
 
-You can also remove the battery of the AirTag by ....
+<b>You can also remove the battery of the AirTag by following the steps listed here:
+https://support.apple.com/en-us/HT211670</b>
 
 # Functionality (implemented and planned)
 
 <figure>
     <img src="assets/StateChart.png"/>
+    <figcaption><i>My initial thoughts for the flow of the program</i></figcaption>
 </figure>
+In order to keep the power requirements down, designed the program to search for nearby AirTags for 30 seconds every 2.5 minutes. After searching for AirTags the ESP will turn off the BLE radio and enter deep sleep. 
+
+
+#### Current Items:
+- [x] Detect AirTags using GAP packets.
+- [x] Count the number of nearby AirTags.
+- [ ] GPIO alerts. (For buzzer or LED.) (Testing required)
+
+#### Planned Items:
+- [OBD2] Detect if the car is on -- power saving feature.
+- Design development circuit board.
+- Design application specific circuit boards.
 
 # Theory of Oporation
 <i>See Adam Catley's comprenesive [tear down and reverse engineer](https://adamcatley.com/AirTag.html) for more info on AirTags.</i>
 
-The AirTag has several states. The two that we are concerned about are <i>Disconnected</i> and <i>Lost Mode</i>. In these two states, the AirTag is boadcasting it's identity for nearby iPhones to detect. The iPhone will then report the public key in the AirTag's broadcast to the FindMy network.
+The AirTag has several states. The two that we are concerned about are <i>Disconnected</i> and <i>Lost Mode</i>. In these two states, the AirTag is boadcasting it's identity for nearby iOS devices to detect. The iOS device will then report the public key in the AirTag's broadcast to the FindMy network.
 <br>
 <figure>
     <img src=https://help.apple.com/assets/5E85E50A094622E7303B3BD6/5E85E511094622E7303B3BDF/en_GB/533ce7ab67178f393dbcd66196cae2d6.png
     alt="How Apple Locates Lost Devices"/>
-    <figcaption>How Apple uses the FindMy Network to locate lost devices. <i>Source: Apple.com</i></figcaption>
+    <figcaption><i>How Apple uses the FindMy Network to locate lost devices. Source: Apple.com</i></figcaption>
 </figure>
 <br>
 Luckily, we can also detect these broadcasts using any BLE device. In this specific case, I am using the ESP32. 
@@ -35,7 +49,7 @@ Luckily, we can also detect these broadcasts using any BLE device. In this speci
 The BLE Generic Access Profile (GAP) is used to provide information to BLE hosts on what the client device is.
 <br>
 <table>
-<caption>AirTag GAP Packet Description. <i>Source: Adam Catley</i></caption>
+<caption><b>AirTag GAP Packet Description. <i>Source: Adam Catley</i></b></caption>
 <tr>
 <th>Byte #</th>
 <th>Value</th>
@@ -90,3 +104,6 @@ Once the basic functionality is implemented software, I plan to move on to creat
 2. 12V Aux power
 3. USB powered
 4. Maybe a keychain type device
+
+# Other Thoughts
+It'd be interesting to see if someone could modify the firmware of an AirTag to be able to alert to other nearby AirTags in Disconnected or Lost mode. 

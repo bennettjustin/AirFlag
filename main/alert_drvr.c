@@ -19,8 +19,8 @@ static void IRAM_ATTR isr_buzzerCallback(void *args)
     // If the counter has reached zero
     if (--(*countPtr) == 0) {
         // Disable timer callback
-        timer_pause(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER);
-        timer_isr_callback_remove(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER);
+        timer_pause(BUZZ_TIMER);
+        timer_isr_callback_remove(BUZZ_TIMER);
 
         // Set the buzzer pin to 0
         if (BUZZER_PIN >= 0)
@@ -85,7 +85,7 @@ void buzzAlert(uint32_t dur)
     // Buzzer needs a 2048Hz Square wave
     // Set a timer to trigger every 250us
     timer_config_t timerConfig = {
-        .divider     = APB_CLK_FREQ / TIMER_RESOLUTION_HZ,
+        .divider     = APB_CLK_FREQ / BUZZ_TMR_RESOLUTION_HZ,
         .counter_dir = TIMER_COUNT_UP,
         .counter_en  = TIMER_PAUSE,
         .alarm_en    = TIMER_ALARM_EN,
@@ -94,18 +94,17 @@ void buzzAlert(uint32_t dur)
     };
 
     // Initialize the timer to 0 with config
-    ESP_ERROR_CHECK(timer_init(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, &timerConfig));
-    ESP_ERROR_CHECK(timer_set_counter_value(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, 0));
+    ESP_ERROR_CHECK(timer_init(BUZZ_TIMER, &timerConfig));
+    ESP_ERROR_CHECK(timer_set_counter_value(BUZZ_TIMER, 0));
 
     // Set alarm value and enable interrupt
-    ESP_ERROR_CHECK(timer_set_alarm_value(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, 250));
-    ESP_ERROR_CHECK(timer_enable_intr(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER));
+    ESP_ERROR_CHECK(timer_set_alarm_value(BUZZ_TIMER, 250));
+    ESP_ERROR_CHECK(timer_enable_intr(BUZZ_TIMER));
 
     // Set the intr callback
     uint16_t *countPtr = (uint16_t *)malloc(sizeof(uint16_t));
     *countPtr          = dur * 4;
-    ESP_ERROR_CHECK(timer_isr_callback_add(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, isr_buzzerCallback,
-                                           countPtr, 0));
+    ESP_ERROR_CHECK(timer_isr_callback_add(BUZZ_TIMER, isr_buzzerCallback, countPtr, 0));
 }
 
 // duration in ms
@@ -116,7 +115,7 @@ void ledAlert(uint32_t dur)
 
     // Set a timer to trigger every 500ms
     timer_config_t timerConfig = {
-        .divider     = APB_CLK_FREQ / TIMER_RESOLUTION_HZ,
+        .divider     = APB_CLK_FREQ / LED_TMR_RESULUTION_HZ,
         .counter_dir = TIMER_COUNT_UP,
         .counter_en  = TIMER_PAUSE,
         .alarm_en    = TIMER_ALARM_EN,
@@ -125,18 +124,17 @@ void ledAlert(uint32_t dur)
     };
 
     // Initialize the timer to 0 with config
-    ESP_ERROR_CHECK(timer_init(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, &timerConfig));
-    ESP_ERROR_CHECK(timer_set_counter_value(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, 0));
+    ESP_ERROR_CHECK(timer_init(LED_TIMER, &timerConfig));
+    ESP_ERROR_CHECK(timer_set_counter_value(LED_TIMER, 0));
 
     // Set alarm value and enable interrupt
-    ESP_ERROR_CHECK(timer_set_alarm_value(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, 500000));
-    ESP_ERROR_CHECK(timer_enable_intr(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER));
+    ESP_ERROR_CHECK(timer_set_alarm_value(LED_TIMER, 500));
+    ESP_ERROR_CHECK(timer_enable_intr(LED_TIMER));
 
     // Set the intr callback
     uint16_t *countPtr = (uint16_t *)malloc(sizeof(uint16_t));
-    *countPtr          = dur * 4;
-    ESP_ERROR_CHECK(timer_isr_callback_add(BUZZER_TMR_GROUP, BUZZER_TMR_TIMER, isr_buzzerCallback,
-                                           countPtr, 0));
+    *countPtr          = dur * 2;
+    ESP_ERROR_CHECK(timer_isr_callback_add(LED_TIMER, isr_buzzerCallback, countPtr, 0));
 }
 
 void alertToAirTag()
@@ -145,7 +143,9 @@ void alertToAirTag()
     for (int i = 0; i < 15; i++) {
 
         const uint32_t one_sec = 1000;
+        ESP_LOGI("ALERT", "Flash for 1 sec.");
         ledAlert(one_sec);
-        vTaskDelay(one_sec / portTICK_PERIOD_MS);   // Default tick length is 15ms
+        ESP_LOGI("ALERT", "Nothing for 1 sec.");
+        vTaskDelay(one_sec / portTICK_PERIOD_MS);     // Default tick length is 15ms
     }
 }
