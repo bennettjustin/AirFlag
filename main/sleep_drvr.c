@@ -7,6 +7,7 @@
 #include "esp_gap_ble_api.h"
 #include "esp_sleep.h"
 
+#include "config.h"
 #include "sleep_drvr.h"
 
 void enterSleep()

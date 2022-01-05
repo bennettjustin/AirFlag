@@ -1,14 +1,15 @@
-#include "alert_drvr.h"
-#include <stdint.h>
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <stdint.h>
 
 #include "driver/gpio.h"
 #include "driver/timer.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "hal/timer_types.h"
+
+#include "alert_drvr.h"
+#include "config.h"
 
 static void IRAM_ATTR isr_buzzerCallback(void *args)
 {

@@ -19,19 +19,15 @@
 #include "esp_gap_ble_api.h"
 
 #include "alert_drvr.h"
+#include "config.h"
 #include "sleep_drvr.h"
-
-#define PRINT_OUT_OTHER_DEVICES 0
 
 #define GAP_SCAN_TAG "GAP SCAN"
 #define STARTUP_TAG  "STARTUP"
 
-uint8_t airTagCount        = 0;
-uint8_t airTagList[6 * 10] = {0};     // esp_bd_addr_t is 6 element array of uint8_t
-bool    gapScanning        = false;
-
-/* Statio Callback functions */
-static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+uint8_t airTagCount                      = 0;
+uint8_t airTagList[6 * MAX_AIRTAG_COUNT] = {0};     // esp_bd_addr_t is 6 element array of uint8_t
+bool    gapScanning                      = false;
 
 static esp_ble_scan_params_t ble_scan_params = {.scan_type          = BLE_SCAN_TYPE_PASSIVE,
                                                 .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
@@ -44,8 +40,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 {
     switch (event) {
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
-        uint32_t duration = 30;     // in seconds
-        esp_ble_gap_start_scanning(duration);
+        esp_ble_gap_start_scanning(GAP_SCAN_DURATION);
         break;
     }
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
@@ -75,7 +70,8 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 
                 // I have enabled the duplicate filter which makes scanning multiple much easier
                 ESP_LOGI(GAP_SCAN_TAG, "AirTag Detected!");
-                xthal_memcpy(airTagList + (airTagCount * 6), scan_result->scan_rst.bda, 6);
+                if (airTagCount < MAX_AIRTAG_COUNT)
+                    xthal_memcpy(airTagList + (airTagCount * 6), scan_result->scan_rst.bda, 6);
                 airTagCount++;
             }
 
@@ -190,23 +186,28 @@ void app_main()
     do {
         if (airTagCount > 1) {
             ESP_LOGI("MAIN", "Waiting for scanning to stop");
-            while (gapScanning) {
 
+            // Wait for the scanning to finish
+            while (gapScanning) {
+                // These delays are needed so that the watchdog doesn't trip up
                 vTaskDelay(1);
             }
+
             //alertToAirTag();
             ESP_LOGI("MAIN", "Found %d AirTag(s)!", airTagCount);
             if (airTagCount > 0) {
-                for (int i = 0; i < airTagCount; i++) {
+                for (int i = 0;
+                     i < ((airTagCount < MAX_AIRTAG_COUNT) ? airTagCount : MAX_AIRTAG_COUNT); i++) {
                     esp_log_buffer_hex("MAIN", airTagList + (i * 6), 6);
                 }
             }
         }
+
         vTaskDelay(1);
 
     } while (gapScanning);
 
-    // Once scanning is done, go to sleep
+    // Once scanning is done, go to sleep for 2 minutes
     ESP_LOGI("MAIN", "Entering Sleep...");
     enterSleep();
 }
