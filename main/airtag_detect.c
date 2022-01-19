@@ -3,7 +3,6 @@
  * Decription: To use the BLE functionality to monitor nearby
  *             BLE advertisements in order to detect Disconencted 
  *             AirTags that may be used to covertly track items/people 
- * Date:       12/30/21
  * 
  *************************************************/
 
@@ -69,13 +68,13 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 (scan_result->scan_rst.ble_adv[6] == 0x10)) {
 
                 // I have enabled the duplicate filter which makes scanning multiple much easier
-                ESP_LOGI(GAP_SCAN_TAG, "AirTag Detected!");
+                // ESP_LOGI(GAP_SCAN_TAG, "AirTag Detected!");
                 if (airTagCount < MAX_AIRTAG_COUNT)
                     xthal_memcpy(airTagList + (airTagCount * 6), scan_result->scan_rst.bda, 6);
                 airTagCount++;
             }
 
-#if PRINT_OUT_OTHER_DEVICES
+#ifdef PRINT_OUT_OTHER_DEVICES
             if (scan_result->scan_rst.adv_data_len > 0) {
                 ESP_LOGI(GAP_SCAN_TAG, "adv data:");
                 esp_log_buffer_hex(GAP_SCAN_TAG, &scan_result->scan_rst.ble_adv[0],
@@ -184,7 +183,7 @@ void app_main()
     // Check to see if an AirTag was detected while we are scanning
     ESP_LOGI("MAIN", "Entering Loop");
     do {
-        if (airTagCount > 1) {
+        if (airTagCount >= 0) {
             ESP_LOGI("MAIN", "Waiting for scanning to stop");
 
             // Wait for the scanning to finish
@@ -193,7 +192,7 @@ void app_main()
                 vTaskDelay(1);
             }
 
-            //alertToAirTag();
+            alertToAirTag();
             ESP_LOGI("MAIN", "Found %d AirTag(s)!", airTagCount);
             if (airTagCount > 0) {
                 for (int i = 0;

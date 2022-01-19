@@ -11,14 +11,27 @@
 #include "alert_drvr.h"
 #include "config.h"
 
-static void IRAM_ATTR isr_buzzerCallback(void *args)
+void toggleGPIO(int8_t pin)
 {
-    uint16_t *countPtr = (uint16_t)(args);
+    if (pin < 0)
+        return;
 
+    uint32_t current_value = gpio_get_level(pin) & 0x01;
+    gpio_set_level(pin, (~current_value) & 0x01);
+}
+
+static uint32_t ledCounter  = 0;
+static uint32_t buzzCounter = 0;
+
+static bool ledRunning  = false;
+static bool buzzRunning = false;
+
+static void IRAM_ATTR isr_buzzerCallback(uint16_t *args)
+{
     toggleGPIO(BUZZER_PIN);
 
     // If the counter has reached zero
-    if (--(*countPtr) == 0) {
+    if (--(buzzCounter) == 0) {
         // Disable timer callback
         timer_pause(BUZZ_TIMER);
         timer_isr_callback_remove(BUZZ_TIMER);
@@ -26,55 +39,61 @@ static void IRAM_ATTR isr_buzzerCallback(void *args)
         // Set the buzzer pin to 0
         if (BUZZER_PIN >= 0)
             GPIO_OUTPUT_SET(BUZZER_PIN, 0);
-
-        // Free the counter mem
-        free(countPtr);
-        ESP_LOGI("ALERT", "Buzzer finished");
     }
+    buzzRunning = false;
+}
+
+static void IRAM_ATTR isr_LEDCallback(uint16_t *args)
+{
+    toggleGPIO(RED_LED_PIN);
+
+    // If the counter has reached zero
+    if (--(ledCounter) == 0) {
+        // Disable timer callback
+        timer_pause(LED_TIMER);
+        timer_isr_callback_remove(LED_TIMER);
+
+        // Set the buzzer pin to 0
+        if (RED_LED_PIN >= 0)
+            GPIO_OUTPUT_SET(RED_LED_PIN, 0);
+    }
+    ledRunning = false;
 }
 
 void initAlert()
 {
     // Configure Buzzer pin if enabled
-    if (BUZZER_PIN >= 0) {
-        gpio_config_t ioConfig = {.mode         = GPIO_MODE_OUTPUT,
+#if BUZZER_PIN >= 0
+    gpio_config_t buzzerConfig = {.mode         = GPIO_MODE_INPUT_OUTPUT,
                                   .pin_bit_mask = ((uint64_t)1) << BUZZER_PIN,
                                   .intr_type    = GPIO_INTR_DISABLE,
                                   .pull_down_en = 0,
                                   .pull_up_en   = 0};
-        ESP_ERROR_CHECK(gpio_config(&ioConfig));
-        GPIO_OUTPUT_SET(BUZZER_PIN, 0);
-    }
+    ESP_ERROR_CHECK(gpio_config(&buzzerConfig));
+    GPIO_OUTPUT_SET(BUZZER_PIN, 0);
+#endif
 
     // Configure Red LED pin if enabled
-    if (RED_LED >= 0) {
-        gpio_config_t ioConfig = {.mode         = GPIO_MODE_OUTPUT,
-                                  .pin_bit_mask = ((uint64_t)1) << RED_LED,
+#if RED_LED_PIN >= 0
+    gpio_config_t redLEDConfig = {.mode         = GPIO_MODE_INPUT_OUTPUT,
+                                  .pin_bit_mask = ((uint64_t)1) << RED_LED_PIN,
                                   .intr_type    = GPIO_INTR_DISABLE,
                                   .pull_down_en = 0,
                                   .pull_up_en   = 0};
-        ESP_ERROR_CHECK(gpio_config(&ioConfig));
-        GPIO_OUTPUT_SET(RED_LED, 0);
-    }
+    ESP_ERROR_CHECK(gpio_config(&redLEDConfig));
+    GPIO_OUTPUT_SET(RED_LED_PIN, 0);
+#endif
 
     // Configure Green LED if enabled
-    if (GREEN_LED >= 0) {
-        gpio_config_t ioConfig = {.mode         = GPIO_MODE_OUTPUT,
-                                  .pin_bit_mask = ((uint64_t)1) << GREEN_LED,
-                                  .intr_type    = GPIO_INTR_DISABLE,
-                                  .pull_down_en = 0,
-                                  .pull_up_en   = 0};
-        ESP_ERROR_CHECK(gpio_config(&ioConfig));
-        GPIO_OUTPUT_SET(GREEN_LED, 0);
-    }
-}
-
-void toggleGPIO(int8_t pin)
-{
-    if (pin < 0)
-        return;
-
-    gpio_get_level(pin) ? (GPIO_OUTPUT_SET(pin, 0)) : (GPIO_OUTPUT_SET(pin, 1));
+#if GREEN_LED_PIN >= 0
+    gpio_config_t ioConfig = {.mode         = GPIO_MODE_OUTPUT,
+                              .pin_bit_mask = ((uint64_t)1) << GREEN_LED_PIN,
+                              .intr_type    = GPIO_INTR_DISABLE,
+                              .pull_down_en = 0,
+                              .pull_up_en   = 0};
+    ESP_ERROR_CHECK(gpio_config(&ioConfig));
+    GPIO_OUTPUT_SET(GREEN_LED_PIN, 0);
+#endif
 }
 
 // duration in ms
@@ -86,7 +105,7 @@ void buzzAlert(uint32_t dur)
     // Buzzer needs a 2048Hz Square wave
     // Set a timer to trigger every 250us
     timer_config_t timerConfig = {
-        .divider     = APB_CLK_FREQ / BUZZ_TMR_RESOLUTION_HZ,
+        .divider     = APB_CLK_FREQ / TMR_RESOLUTION_HZ,
         .counter_dir = TIMER_COUNT_UP,
         .counter_en  = TIMER_PAUSE,
         .alarm_en    = TIMER_ALARM_EN,
@@ -95,28 +114,30 @@ void buzzAlert(uint32_t dur)
     };
 
     // Initialize the timer to 0 with config
-    ESP_ERROR_CHECK(timer_init(BUZZ_TIMER, &timerConfig));
-    ESP_ERROR_CHECK(timer_set_counter_value(BUZZ_TIMER, 0));
+    timer_init(BUZZ_TIMER, &timerConfig);
+    timer_set_counter_value(BUZZ_TIMER, 0);
 
     // Set alarm value and enable interrupt
-    ESP_ERROR_CHECK(timer_set_alarm_value(BUZZ_TIMER, 250));
-    ESP_ERROR_CHECK(timer_enable_intr(BUZZ_TIMER));
+    timer_set_alarm_value(BUZZ_TIMER, 250);
+    timer_enable_intr(BUZZ_TIMER);
 
     // Set the intr callback
-    uint16_t *countPtr = (uint16_t *)malloc(sizeof(uint16_t));
-    *countPtr          = dur * 4;
-    ESP_ERROR_CHECK(timer_isr_callback_add(BUZZ_TIMER, isr_buzzerCallback, countPtr, 0));
+    buzzCounter = dur * 4000;
+    buzzRunning = true;
+    timer_isr_callback_add(BUZZ_TIMER, isr_buzzerCallback, 0, 0);
+    timer_start(BUZZ_TIMER);
+    ESP_LOGI("TMR", "Buzzer timer started");
 }
 
 // duration in ms
 void ledAlert(uint32_t dur)
 {
-    if (BUZZER_PIN < 0)
+    if (RED_LED_PIN < 0)
         return;
 
     // Set a timer to trigger every 500ms
     timer_config_t timerConfig = {
-        .divider     = APB_CLK_FREQ / LED_TMR_RESULUTION_HZ,
+        .divider     = APB_CLK_FREQ / TMR_RESOLUTION_HZ,
         .counter_dir = TIMER_COUNT_UP,
         .counter_en  = TIMER_PAUSE,
         .alarm_en    = TIMER_ALARM_EN,
@@ -125,28 +146,39 @@ void ledAlert(uint32_t dur)
     };
 
     // Initialize the timer to 0 with config
-    ESP_ERROR_CHECK(timer_init(LED_TIMER, &timerConfig));
-    ESP_ERROR_CHECK(timer_set_counter_value(LED_TIMER, 0));
+    timer_init(LED_TIMER, &timerConfig);
+    timer_set_counter_value(LED_TIMER, 0);
 
     // Set alarm value and enable interrupt
-    ESP_ERROR_CHECK(timer_set_alarm_value(LED_TIMER, 500));
-    ESP_ERROR_CHECK(timer_enable_intr(LED_TIMER));
+    timer_set_alarm_value(LED_TIMER, 500000);
+    timer_enable_intr(LED_TIMER);
 
     // Set the intr callback
-    uint16_t *countPtr = (uint16_t *)malloc(sizeof(uint16_t));
-    *countPtr          = dur * 2;
-    ESP_ERROR_CHECK(timer_isr_callback_add(LED_TIMER, isr_buzzerCallback, countPtr, 0));
+    ledCounter = dur * 2;
+    ledRunning = true;
+    timer_isr_callback_add(LED_TIMER, isr_LEDCallback, 0, 0);
+    timer_start(LED_TIMER);
+    ESP_LOGI("TMR", "LED Timer started");
 }
 
 void alertToAirTag()
 {
-    // The beeps (~30 second total time)
-    for (int i = 0; i < 15; i++) {
 
-        const uint32_t one_sec = 1000;
-        ESP_LOGI("ALERT", "Flash for 1 sec.");
-        ledAlert(one_sec);
-        ESP_LOGI("ALERT", "Nothing for 1 sec.");
-        vTaskDelay(one_sec / portTICK_PERIOD_MS);     // Default tick length is 15ms
+    ledAlert(1000);
+    buzzAlert(1000);
+
+    while (ledRunning || buzzRunning) {
+        vTaskDelay(1);
+        printf("wait");
     }
+    // // The beeps (~30 second total time)
+    // for (int i = 0; i < 15; i++) {
+
+    //     const uint32_t one_sec = 1000;
+    //     alerting               = true;
+    //
+    //     vTaskDelay(one_sec / portTICK_PERIOD_MS);     // Default tick length is 15ms
+    // }
 }
+
+void alertToClear() {}

@@ -3,15 +3,15 @@
 
 #include <stdint.h>
 
-/* Defined in config.h
+/*********************
+ * Defined in config.h -- DO NOT CHANGE HERE
 #define BUZZER_PIN   2
 #define RED_LED      -1
 #define GREEN_LED    -1
 #define ALERT_LENGTH 60     //in seconds
 **********************/
 
-#define BUZZ_TMR_RESOLUTION_HZ 1000000     // 1Mhz (1us)
-#define LED_TMR_RESULUTION_HZ  1000        // 1kHz (1ms)
+#define TMR_RESOLUTION_HZ 1000000     // 1Mhz (1us)
 
 #define BUZZER_TMR_GROUP 0
 #define BUZZER_TMR_TIMER 0
@@ -20,6 +20,8 @@
 #define LED_TMR_GROUP 0
 #define LED_TMR_TIMER 1
 #define LED_TIMER     LED_TMR_GROUP, LED_TMR_TIMER
+
+bool alerting;
 
 void initAlert();
 void toggleGPIO(int8_t pin);
