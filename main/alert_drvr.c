@@ -1,4 +1,5 @@
 #include "freertos/FreeRTOS.h"
+#include "freertos/portmacro.h"
 #include "freertos/task.h"
 #include <stdint.h>
 
@@ -26,12 +27,13 @@ static uint32_t buzzCounter = 0;
 static bool ledRunning  = false;
 static bool buzzRunning = false;
 
-static void IRAM_ATTR isr_buzzerCallback(uint16_t *args)
+static void IRAM_ATTR isr_buzzerCallback(uint32_t *args)
 {
+
     toggleGPIO(BUZZER_PIN);
 
     // If the counter has reached zero
-    if (--(buzzCounter) == 0) {
+    if (--(*args) <= 0) {
         // Disable timer callback
         timer_pause(BUZZ_TIMER);
         timer_isr_callback_remove(BUZZ_TIMER);
@@ -39,16 +41,17 @@ static void IRAM_ATTR isr_buzzerCallback(uint16_t *args)
         // Set the buzzer pin to 0
         if (BUZZER_PIN >= 0)
             GPIO_OUTPUT_SET(BUZZER_PIN, 0);
+
+        buzzRunning = false;
     }
-    buzzRunning = false;
 }
 
-static void IRAM_ATTR isr_LEDCallback(uint16_t *args)
+static void IRAM_ATTR isr_LEDCallback(uint32_t *args)
 {
     toggleGPIO(RED_LED_PIN);
 
     // If the counter has reached zero
-    if (--(ledCounter) == 0) {
+    if (--(*args) <= 0) {
         // Disable timer callback
         timer_pause(LED_TIMER);
         timer_isr_callback_remove(LED_TIMER);
@@ -56,8 +59,9 @@ static void IRAM_ATTR isr_LEDCallback(uint16_t *args)
         // Set the buzzer pin to 0
         if (RED_LED_PIN >= 0)
             GPIO_OUTPUT_SET(RED_LED_PIN, 0);
+
+        ledRunning = false;
     }
-    ledRunning = false;
 }
 
 void initAlert()
@@ -118,13 +122,15 @@ void buzzAlert(uint32_t dur)
     timer_set_counter_value(BUZZ_TIMER, 0);
 
     // Set alarm value and enable interrupt
-    timer_set_alarm_value(BUZZ_TIMER, 250);
+    uint32_t halfPeriod = 333 / 2;
+    timer_set_alarm_value(BUZZ_TIMER, halfPeriod);
+    //timer_set_alarm_value(BUZZ_TIMER, 500000);
     timer_enable_intr(BUZZ_TIMER);
 
     // Set the intr callback
-    buzzCounter = dur * 4000;
+    buzzCounter = dur * (1000 / halfPeriod);
     buzzRunning = true;
-    timer_isr_callback_add(BUZZ_TIMER, isr_buzzerCallback, 0, 0);
+    timer_isr_callback_add(BUZZ_TIMER, isr_buzzerCallback, &buzzCounter, 0);
     timer_start(BUZZ_TIMER);
     ESP_LOGI("TMR", "Buzzer timer started");
 }
@@ -154,9 +160,9 @@ void ledAlert(uint32_t dur)
     timer_enable_intr(LED_TIMER);
 
     // Set the intr callback
-    ledCounter = dur * 2;
+    ledCounter = dur / 500;
     ledRunning = true;
-    timer_isr_callback_add(LED_TIMER, isr_LEDCallback, 0, 0);
+    timer_isr_callback_add(LED_TIMER, isr_LEDCallback, &ledCounter, 0);
     timer_start(LED_TIMER);
     ESP_LOGI("TMR", "LED Timer started");
 }
@@ -164,12 +170,17 @@ void ledAlert(uint32_t dur)
 void alertToAirTag()
 {
 
-    ledAlert(1000);
-    buzzAlert(1000);
+    ledAlert(2000);
+    buzzAlert(500);
+
+    while (buzzRunning) {
+        vTaskDelay(1);
+    }
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    buzzAlert(500);
 
     while (ledRunning || buzzRunning) {
         vTaskDelay(1);
-        printf("wait");
     }
     // // The beeps (~30 second total time)
     // for (int i = 0; i < 15; i++) {

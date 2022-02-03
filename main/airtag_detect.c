@@ -173,7 +173,7 @@ void app_main()
 {
     ESP_Init();
     initAlert();
-
+    alertToAirTag();
     // Wait for GAP scanning to start
     ESP_LOGI("Main", "Starting delay");
     while (!gapScanning) {
@@ -192,7 +192,7 @@ void app_main()
                 vTaskDelay(1);
             }
 
-            alertToAirTag();
+            //alertToAirTag();
             ESP_LOGI("MAIN", "Found %d AirTag(s)!", airTagCount);
             if (airTagCount > 0) {
                 for (int i = 0;

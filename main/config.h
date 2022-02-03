@@ -3,8 +3,8 @@
 
 // The pins used for alerts. Can be any pin available on the ESP32.
 // Set to -1 to disable
-#define BUZZER_PIN    23
-#define RED_LED_PIN   22
+#define BUZZER_PIN    22
+#define RED_LED_PIN   21
 #define GREEN_LED_PIN -1
 
 // How long to alert to a detected AirTag
@@ -14,7 +14,7 @@
 #define SLEEP_TIME_US 120000000     // 2 minutes
 
 // How long to scan for AirTags
-#define GAP_SCAN_DURATION 30     // In seconds
+#define GAP_SCAN_DURATION 5     // In seconds
 
 // The maximum number of AirTags to scan for.
 #define MAX_AIRTAG_COUNT 10
